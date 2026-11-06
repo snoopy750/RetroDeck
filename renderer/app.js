@@ -7,6 +7,10 @@ const GROUPS = [
 const base = { sharp: 62, bleed: 70, shift_: 45, over: 35, noise_: 35, jitter: 30, track: 12, drop_: 18, scan: 30, head: 55, flick: 15, vig: 25, sat: 50, hue: 50, con: 50, pop: 0 };
 const PRESETS = [
   { name: 'Original VHS', cols: ['#8d8f96', '#6f8f84', '#b9a08a'], v: { ...base, sat: 42 } },
+  { name: 'VHS Knallig', cols: ['#e8293a', '#26b34a', '#2a5bff'], v: { ...base, sat: 76, con: 56, bleed: 78, shift_: 55, noise_: 30 } },
+  { name: 'Camcorder 90er', cols: ['#ff7a3c', '#ffd98a', '#7fb8ff'], v: { ...base, sat: 68, hue: 47, con: 54, sharp: 52, over: 50, noise_: 28, jitter: 22, vig: 20 } },
+  { name: 'Musikvideo', cols: ['#ff2e93', '#ffd400', '#00c2ff'], v: { ...base, sat: 90, con: 64, bleed: 88, shift_: 70, scan: 40, noise_: 22, track: 6 } },
+  { name: 'Heimvideo Warm', cols: ['#3a1a0e', '#c9783a', '#ffe7b0'], v: { ...base, sat: 66, hue: 45, con: 52, sharp: 45, noise_: 38, flick: 25, vig: 35, pop: 12 } },
   { name: '80er Pop', cols: ['#1a0a4a', '#ff2e93', '#ffd400'], v: { ...base, sat: 78, con: 58, pop: 55, noise_: 25 } },
   { name: 'Synthwave', cols: ['#2b0a5e', '#ff2fa0', '#27e0ff'], v: { ...base, sat: 70, con: 60, pop: 75, scan: 45, vig: 40 } },
   { name: 'Miami', cols: ['#0d5c63', '#ff6fb5', '#fff1c1'], v: { ...base, sat: 72, con: 54, pop: 60, bleed: 55 } },
@@ -15,7 +19,8 @@ const PRESETS = [
 ];
 const $ = (id) => document.getElementById(id);
 const store = { get() { try { return JSON.parse(localStorage.getItem('retrodeck') || 'null'); } catch { return null; } }, set(v) { try { localStorage.setItem('retrodeck', JSON.stringify(v)); return true; } catch { return false; } } };
-let vals = { ...PRESETS[1].v }, cols = [...PRESETS[1].cols], split = false, activePreset = 1, media = null, busy = false, cancel = false;
+const START = PRESETS.findIndex((p) => p.name === 'VHS Knallig');
+let vals = { ...PRESETS[START].v }, cols = [...PRESETS[START].cols], split = false, activePreset = START, media = null, busy = false, cancel = false;
 const knobs = {};
 
 function setKnob(k, v) {
@@ -158,7 +163,7 @@ addEventListener('dragleave', (e) => { if (!e.relatedTarget) $('drop').hidden = 
 addEventListener('drop', (e) => { e.preventDefault(); $('drop').hidden = true; const f = e.dataTransfer.files[0]; if (f) open(window.api.pathOf(f)).catch(() => {}); });
 addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.target.closest('.d,button,input') && !$('play').disabled) { e.preventDefault(); $('play').click(); } });
 
-buildKnobs(); buildPresets(); applyPreset(PRESETS[1], 1); requestAnimationFrame(loop);
+buildKnobs(); buildPresets(); applyPreset(PRESETS[START], START); requestAnimationFrame(loop);
 const dbg = gl.getExtension('WEBGL_debug_renderer_info');
 if (dbg && /swiftshader|llvmpipe|software/i.test(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL))) $('status').textContent = 'Die Grafikkarte wird nicht genutzt, darum ist die Prozessorlast hoch. Aktualisiere den Grafiktreiber.';
 window.api.onSelftest(async ({ input, output }) => {

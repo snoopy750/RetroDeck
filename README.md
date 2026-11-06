@@ -6,7 +6,7 @@ Windows-Programm, das Videos in Echtzeit mit VHS-Effekten und Retro-Pop-Farben v
 
 - **Live-Vorschau:** Jede Änderung ist sofort im Video sichtbar.
 - **16 Drehregler:** Sie sind in Signal, Band, Bild und Farbe gruppiert.
-- **6 Farb-Presets:** Original VHS, 80er Pop, Synthwave, Miami, Kaputtes Band und Eigene Farben mit 3 frei wählbaren Tönen.
+- **10 Presets:** Original VHS, VHS Knallig, Camcorder 90er, Musikvideo und Heimvideo Warm für den klassischen Look mit kräftigen Farben, dazu 80er Pop, Synthwave, Miami, Kaputtes Band und Eigene Farben mit 3 frei wählbaren Tönen.
 - **Bildrate:** Ein eigener Regler stellt 5 bis 60 Bilder/s ein, niedrige Werte ruckeln bewusst.
 - **Vorher/Nachher:** Links siehst du das Original, rechts den Effekt.
 - **PLAY-Anzeige:** Die Einblendung im Stil eines Videorekorders lässt sich ein- und ausschalten.
