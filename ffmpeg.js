@@ -11,11 +11,12 @@ const FPS = 25;
 const AUDIO = 'highpass=f=120,lowpass=f=6000,acompressor=threshold=0.15:ratio=4,volume=2.2';
 const even = (n) => Math.max(2, Math.round(n / 2) * 2);
 
-function run(bin, args) {
+function run(bin, args, onOut) {
   return new Promise((resolve, reject) => {
     const p = calm(spawn(bin, args, { windowsHide: true }));
     let err = '';
     p.stderr.on('data', (d) => { err = (err + d).slice(-8000); });
+    p.stdout.on('data', (d) => { if (onOut) onOut(String(d)); });
     p.on('error', reject);
     p.on('close', (code) => resolve({ code, err }));
   });
@@ -31,19 +32,23 @@ async function probe(bin, file) {
     height: +v[2],
     duration: d ? +d[1] * 3600 + +d[2] * 60 + +d[3] : 0,
     audio: /Audio:/.test(err),
-    direct: /Input #0, mov,mp4/.test(err) && /Video: h264/.test(err) && !/Audio: (?!aac)/.test(err) && +v[2] <= 1080
-      && fs.statSync(file).size < 400 * 1024 * 1024,
+    // Diese Formate spielt die App direkt ab, ohne Umwandlung
+    direct: /Input #0, mov,mp4/.test(err) && /Video: (h264|hevc|av1|vp9)/.test(err) && !/Audio: (?!aac|mp3|opus)/.test(err),
   };
 }
 
 // Vorschau in kleinem, gut abspielbarem Format (funktioniert auch mit AVI).
-async function makePreview(bin, file, out, info, codec = 'h264') {
-  const a = ['-y', '-v', 'error', '-threads', '1', '-i', file, '-filter_threads', '1', '-vf', 'scale=-2:\'min(480,ih)\',format=yuv420p', '-r', String(FPS)];
+async function makePreview(bin, file, out, info, codec = 'h264', onProgress = () => {}) {
+  const a = ['-y', '-v', 'error', '-nostats', '-progress', 'pipe:1', '-hwaccel', 'auto', '-i', file,
+    '-vf', 'scale=-2:\'min(480,ih)\':flags=fast_bilinear,format=yuv420p', '-r', String(FPS)];
   if (codec === 'h264') a.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-g', '12', '-threads', '2');
   else a.push('-c:v', 'libvpx', '-b:v', '2M', '-g', '12');
   if (info.audio) a.push('-c:a', codec === 'h264' ? 'aac' : 'libvorbis', '-b:a', '128k', '-ar', '44100');
   a.push(out);
-  const { code, err } = await run(bin, a);
+  const { code, err } = await run(bin, a, (line) => {
+    const m = /out_time_ms=(\d+)/.exec(line);
+    if (m && info.duration) onProgress(Math.min(1, +m[1] / 1e6 / info.duration));
+  });
   if (code !== 0) throw new Error('Die Vorschau konnte nicht erstellt werden: ' + err.slice(-300));
   return out;
 }
@@ -56,7 +61,7 @@ class ExportJob {
     this.frames = Math.ceil(info.duration * fps) || 0;
     this.out = out;
     this.tmp = out + '.tmp.mp4';
-    this.dec = spawn(bin, ['-v', 'error', '-threads', '2', '-i', src, '-vf', `fps=${fps},scale=${this.w}:${this.h},format=rgba`,
+    this.dec = spawn(bin, ['-v', 'error', '-hwaccel', 'auto', '-i', src, '-vf', `fps=${fps},scale=${this.w}:${this.h}:flags=bilinear,format=rgba`,
       '-f', 'rawvideo', '-'], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
     calm(this.dec);
     const audio = info.audio ? ['-map', '1:a', '-af', AUDIO, '-c:a', 'aac', '-b:a', '160k', '-ar', '44100', '-shortest'] : [];

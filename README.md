@@ -11,7 +11,7 @@ Windows-Programm, das Videos in Echtzeit mit VHS-Effekten und Retro-Pop-Farben v
 - **Vorher/Nachher:** Links siehst du das Original, rechts den Effekt.
 - **PLAY-Anzeige:** Die Einblendung im Stil eines Videorekorders lässt sich ein- und ausschalten.
 - **Export:** Das Ergebnis wird als MP4 mit gealtertem Ton gespeichert.
-- **Viele Formate:** RetroDeck öffnet unter anderem MP4, MOV, MKV, WEBM, AVI, MTS, WMV und MPG.
+- **Viele Formate:** RetroDeck öffnet unter anderem MP4, MOV, MKV, WEBM, AVI, MTS, WMV und MPG. MP4 und MOV starten meist sofort, auch in 4K. Andere Formate werden zuerst mit Fortschrittsanzeige umgewandelt.
 
 ## Effekte
 

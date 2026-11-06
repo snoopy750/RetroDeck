@@ -20,10 +20,14 @@ jobs:
         run: |
           $ff = (node -p "require('ffmpeg-static')")
           & $ff -y -v error -f lavfi -i testsrc=size=640x480:rate=30:duration=3 -f lavfi -i sine=duration=3 -c:v mjpeg -c:a pcm_s16le test.avi
-          $p = Start-Process "dist\win-unpacked\RetroDeck.exe" -ArgumentList "--selftest","`"$PWD\test.avi`"","`"$PWD\test_out.mp4`"" -Wait -PassThru
-          "Exitcode: $($p.ExitCode)"
-          if ($p.ExitCode -ne 0) { exit 1 }
-          if ((Get-Item test_out.mp4).Length -lt 10000) { exit 1 }
+          & $ff -y -v error -f lavfi -i testsrc=size=1920x1080:rate=60:duration=3 -f lavfi -i sine=duration=3 -c:v libx264 -pix_fmt yuv420p -c:a aac test.mp4
+          foreach ($f in "avi","mp4") {
+            $o = "$PWD\out_$f.mp4"
+            $p = Start-Process "dist\win-unpacked\RetroDeck.exe" -ArgumentList "--selftest","`"$PWD\test.$f`"","`"$o`"" -Wait -PassThru
+            "$f Exitcode: $($p.ExitCode)"
+            if ($p.ExitCode -ne 0) { exit 1 }
+            if ((Get-Item $o).Length -lt 10000) { exit 1 }
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: RetroDeck

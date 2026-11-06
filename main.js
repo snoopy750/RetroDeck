@@ -1,4 +1,6 @@
-const { app, BrowserWindow, dialog, ipcMain, shell, Menu } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, shell, Menu, protocol } = require('electron');
+const { Readable } = require('stream');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -13,7 +15,28 @@ if (selftest) { // Build-Rechner haben keine Grafikkarte
   app.commandLine.appendSwitch('ignore-gpu-blocklist');
 }
 
+protocol.registerSchemesAsPrivileged([{ scheme: 'rdmedia', privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true, corsEnabled: true } }]);
+
 let win, current = null, job = null;
+const served = new Map();
+function serve(file) {
+  const id = crypto.randomBytes(8).toString('hex');
+  served.set(id, file);
+  return `rdmedia://${id}/video`;
+}
+// Liefert Videos stückweise von der Festplatte, darum muss nichts in den Arbeitsspeicher
+function mediaResponse(req) {
+  const file = served.get(new URL(req.url).hostname);
+  if (!file) return new Response('', { status: 404 });
+  const size = fs.statSync(file).size;
+  const m = /bytes=(\d+)-(\d*)/.exec(req.headers.get('range') || '');
+  const start = m ? +m[1] : 0, end = m && m[2] ? Math.min(+m[2], size - 1) : size - 1;
+  return new Response(Readable.toWeb(fs.createReadStream(file, { start, end })), {
+    status: m ? 206 : 200,
+    headers: { 'Content-Type': /\.webm$/i.test(file) ? 'video/webm' : 'video/mp4', 'Accept-Ranges': 'bytes', 'Content-Length': String(end - start + 1),
+      'Content-Range': `bytes ${start}-${end}/${size}`, 'Access-Control-Allow-Origin': '*' },
+  });
+}
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'retrodeck-'));
 
 function create() {
@@ -36,18 +59,16 @@ ipcMain.handle('pick', async () => {
 
 ipcMain.handle('load', async (_e, file) => {
   const info = await probe(ffmpegBin, file);
-  let data;
-  if (info.direct) data = fs.readFileSync(file); // MP4 läuft ohne Umwandlung
-  else {
-    const out = path.join(tmpDir, `preview-${Date.now()}.mp4`);
-    await makePreview(ffmpegBin, file, out, info);
-    data = fs.readFileSync(out);
-    fs.rmSync(out, { force: true });
-  }
   current = { file, info };
-  const b = data.buffer.slice(data.byteOffset, data.byteOffset + data.length);
-  return { name: path.basename(file), info, data: b };
+  return { name: path.basename(file), info, url: info.direct ? serve(file) : await proxy() };
 });
+ipcMain.handle('load-proxy', () => proxy());
+
+async function proxy() {
+  const out = path.join(tmpDir, `preview-${Date.now()}.mp4`);
+  await makePreview(ffmpegBin, current.file, out, current.info, 'h264', (v) => win.webContents.send('progress', v));
+  return serve(out);
+}
 
 ipcMain.handle('export-start', async (_e, fixedOut, fps) => {
   if (!current) throw new Error('Öffne zuerst ein Video.');
@@ -74,7 +95,7 @@ ipcMain.handle('selftest-done', (_e, ok, msg) => {
   app.exit(ok ? 0 : 1);
 });
 
-app.whenReady().then(create);
+app.whenReady().then(() => { protocol.handle('rdmedia', mediaResponse); create(); });
 app.on('window-all-closed', () => app.quit());
 app.on('quit', () => {
   if (job) job.cancel();

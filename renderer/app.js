@@ -97,7 +97,7 @@ function render(t, sp) {
   gl.uniform3fv(U('uC0'), hex(cols[0])); gl.uniform3fv(U('uC1'), hex(cols[1])); gl.uniform3fv(U('uC2'), hex(cols[2]));
   gl.viewport(0, 0, canvas.width, canvas.height); gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
-const vid = document.createElement('video'); vid.playsInline = true; vid.preload = 'auto'; vid.loop = true;
+const vid = document.createElement('video'); vid.crossOrigin = 'anonymous'; vid.playsInline = true; vid.preload = 'auto'; vid.loop = true;
 let audioReady = false;
 function audioChain() { // Ton wie vom Band auch in der Vorschau
   if (audioReady) return; audioReady = true;
@@ -119,13 +119,16 @@ function loop(now) {
 }
 
 async function open(path) {
-  $('status').textContent = 'Video wird vorbereitet ...'; $('exp').disabled = true;
+  $('status').textContent = 'Video wird geöffnet ...'; $('exp').disabled = true;
   try {
     const r = await window.api.load(path);
-    if (media) URL.revokeObjectURL(media.url);
-    const url = URL.createObjectURL(new Blob([r.data], { type: r.type || 'video/mp4' }));
-    vid.src = url; dirty = true; media = { url, name: r.name, info: r.info };
-    await new Promise((res, rej) => { vid.onloadeddata = res; vid.onerror = () => rej(new Error('Die Vorschau lässt sich nicht abspielen.')); });
+    const play = (url) => new Promise((res, rej) => { vid.onloadeddata = res; vid.onerror = () => rej(new Error('Die Vorschau lässt sich nicht abspielen.')); vid.src = url; });
+    try { await play(r.url); } catch (e) {
+      if (!r.info.direct) throw e;
+      if (window.selftest) throw new Error('Direktes Abspielen ist fehlgeschlagen.');
+      $('status').textContent = 'Vorschau wird erstellt ...'; await play(await window.api.loadProxy()); // Format nicht direkt abspielbar
+    }
+    dirty = true; media = { name: r.name, info: r.info };
     canvas.width = Math.round(vid.videoWidth / vid.videoHeight * 480 / 2) * 2; canvas.height = 480;
     ['play', 'seek', 'exp'].forEach((id) => { $(id).disabled = false; });
     $('status').textContent = `${r.name}, ${r.info.width} × ${r.info.height}, ${fmt(r.info.duration)}`;
@@ -166,7 +169,9 @@ addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.target.closest
 buildKnobs(); buildPresets(); applyPreset(PRESETS[START], START); requestAnimationFrame(loop);
 const dbg = gl.getExtension('WEBGL_debug_renderer_info');
 if (dbg && /swiftshader|llvmpipe|software/i.test(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL))) $('status').textContent = 'Die Grafikkarte wird nicht genutzt, darum ist die Prozessorlast hoch. Aktualisiere den Grafiktreiber.';
+window.api.onProgress?.((v) => { $('status').textContent = `Vorschau wird erstellt: ${Math.round(v * 100)} %`; });
 window.api.onSelftest(async ({ input, output }) => {
+  window.selftest = true;
   try { await open(input); await doExport(output); await window.api.selftestDone(true, 'ok'); } catch (e) { await window.api.selftestDone(false, String(e)); }
 });
 window._rd = { setFps, open, doExport, applyPreset, PRESETS, vid };
