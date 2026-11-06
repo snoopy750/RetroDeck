@@ -41,7 +41,7 @@ function buildKnobs() {
   }
 }
 function applyPreset(p, i) {
-  activePreset = i; Object.keys(p.v).forEach((k) => setKnob(k, p.v[k])); cols = [...p.cols];
+  activePreset = i; if (p.fps) setFps(p.fps); Object.keys(p.v).forEach((k) => setKnob(k, p.v[k])); cols = [...p.cols];
   [...$('presets').children].forEach((b, j) => b.classList.toggle('on', j === i));
   $('own').hidden = !p.own; ['c0', 'c1', 'c2'].forEach((id, n) => { $(id).value = cols[n]; });
 }
@@ -88,7 +88,7 @@ function drawOsd(text) {
 const stamp = (t) => `SP ${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 function render(t, sp) {
   for (const k in vals) gl.uniform1f(U(k), vals[k] / 100);
-  gl.uniform1f(U('uT'), t); gl.uniform1f(U('uSplit'), sp ? 1 : 0); gl.uniform2f(U('uR'), canvas.width, canvas.height);
+  gl.uniform1f(U('uT'), t); gl.uniform1f(U('uFps'), fps); gl.uniform1f(U('uSplit'), sp ? 1 : 0); gl.uniform2f(U('uR'), canvas.width, canvas.height);
   gl.uniform3fv(U('uC0'), hex(cols[0])); gl.uniform3fv(U('uC1'), hex(cols[1])); gl.uniform3fv(U('uC2'), hex(cols[2]));
   gl.viewport(0, 0, canvas.width, canvas.height); gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
@@ -101,10 +101,11 @@ function audioChain() { // Ton wie vom Band auch in der Vorschau
 const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const start = performance.now();
 // Vorschau mit 25 Bildern/s, Video nur hochladen, wenn ein neues Bild da ist
-let lastDraw = 0, dirty = true, shown = null;
+let lastDraw = 0, dirty = true, shown = null, fps = 25;
+const setFps = (v) => { fps = Math.max(5, Math.min(60, +v || 25)); $('fps').value = fps; $('fpsV').textContent = fps; };
 if (vid.requestVideoFrameCallback) { const vf = () => { dirty = true; vid.requestVideoFrameCallback(vf); }; vid.requestVideoFrameCallback(vf); }
 function loop(now) {
-  requestAnimationFrame(loop); if (busy || now - lastDraw < 36) return; lastDraw = now;
+  requestAnimationFrame(loop); if (busy || now - lastDraw < 1000 / fps - 4) return; lastDraw = now;
   const hasV = media && vid.readyState >= 2, s = hasV ? vid : demoC;
   if (dirty || s !== shown || !vid.requestVideoFrameCallback) { upload(s); shown = s; dirty = false; }
   drawOsd(stamp(hasV ? vid.currentTime : 5));
@@ -127,7 +128,7 @@ async function open(path) {
 }
 async function doExport(fixedOut) {
   vid.pause(); $('play').textContent = '▶';
-  const job = await window.api.exportStart(fixedOut); if (!job) return null;
+  const job = await window.api.exportStart(fixedOut, fps); if (!job) return null;
   busy = true; cancel = false; $('ov').hidden = false; $('ovT').textContent = 'Export läuft'; $('ovP').value = 0;
   const pw = canvas.width, ph = canvas.height, pix = new Uint8Array(job.w * job.h * 4);
   canvas.width = job.w; canvas.height = job.h; const t0 = performance.now(); let i = 0;
@@ -135,9 +136,9 @@ async function doExport(fixedOut) {
     for (;;) {
       if (cancel) { await window.api.exportCancel(); $('status').textContent = 'Export abgebrochen.'; return null; }
       const buf = await window.api.exportNext(); if (!buf) break;
-      const t = i / 25; upload(new Uint8Array(buf), job.w, job.h); drawOsd(stamp(t)); render(t, false);
+      const t = i / fps; upload(new Uint8Array(buf), job.w, job.h); drawOsd(stamp(t)); render(t, false);
       gl.readPixels(0, 0, job.w, job.h, gl.RGBA, gl.UNSIGNED_BYTE, pix); await window.api.exportPut(pix.slice().buffer); i++;
-      if (i % 5 === 0) { $('ovP').value = job.frames ? Math.min(1, i / job.frames) : 0; const sp = i / 25 / ((performance.now() - t0) / 1000); $('ovS').textContent = `${i} / ${job.frames} Bilder, ${sp.toFixed(1)}-fache Echtzeit`; await new Promise((r) => setTimeout(r)); }
+      if (i % 5 === 0) { $('ovP').value = job.frames ? Math.min(1, i / job.frames) : 0; const sp = i / fps / ((performance.now() - t0) / 1000); $('ovS').textContent = `${i} / ${job.frames} Bilder, ${sp.toFixed(1)}-fache Echtzeit`; await new Promise((r) => setTimeout(r)); }
     }
     const out = await window.api.exportFinish(); $('status').textContent = `Gespeichert: ${out}`; window.api.reveal(out); return out;
   } catch (e) { $('status').textContent = e.message; throw e; } finally { busy = false; dirty = true; $('ov').hidden = true; canvas.width = pw; canvas.height = ph; }
@@ -147,8 +148,9 @@ $('open').onclick = async () => { const p = await window.api.pick(); if (p) open
 $('play').onclick = () => { audioChain(); if (vid.paused) { vid.play(); $('play').textContent = '❚❚'; } else { vid.pause(); $('play').textContent = '▶'; } };
 $('seek').oninput = (e) => { if (vid.duration) vid.currentTime = e.target.value / 1000 * vid.duration; };
 $('cmp').onclick = () => { split = !split; $('cmp').classList.toggle('on', split); };
-$('save').onclick = () => { $('status').textContent = store.set({ v: { ...vals }, cols: [...cols] }) ? 'Einstellungen gespeichert.' : 'Speichern ist fehlgeschlagen.'; buildPresets(); [...$('presets').children].at(-1).click(); };
+$('save').onclick = () => { $('status').textContent = store.set({ v: { ...vals }, cols: [...cols], fps }) ? 'Einstellungen gespeichert.' : 'Speichern ist fehlgeschlagen.'; buildPresets(); [...$('presets').children].at(-1).click(); };
 $('exp').onclick = () => doExport().catch(() => {});
+$('fps').oninput = (e) => setFps(e.target.value);
 $('ovC').onclick = () => { cancel = true; };
 ['c0', 'c1', 'c2'].forEach((id, n) => { $(id).oninput = (e) => { cols[n] = e.target.value; }; });
 addEventListener('dragover', (e) => { e.preventDefault(); $('drop').hidden = false; });
@@ -162,4 +164,4 @@ if (dbg && /swiftshader|llvmpipe|software/i.test(gl.getParameter(dbg.UNMASKED_RE
 window.api.onSelftest(async ({ input, output }) => {
   try { await open(input); await doExport(output); await window.api.selftestDone(true, 'ok'); } catch (e) { await window.api.selftestDone(false, String(e)); }
 });
-window._rd = { open, doExport, applyPreset, PRESETS, vid };
+window._rd = { setFps, open, doExport, applyPreset, PRESETS, vid };

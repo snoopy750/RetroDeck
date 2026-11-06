@@ -45,7 +45,7 @@ ipcMain.handle('load', async (_e, file) => {
   return { name: path.basename(file), info, data: b };
 });
 
-ipcMain.handle('export-start', async (_e, fixedOut) => {
+ipcMain.handle('export-start', async (_e, fixedOut, fps) => {
   if (!current) throw new Error('Öffne zuerst ein Video.');
   let out = fixedOut;
   if (!out) {
@@ -54,7 +54,7 @@ ipcMain.handle('export-start', async (_e, fixedOut) => {
     if (r.canceled) return null;
     out = r.filePath;
   }
-  job = new ExportJob(ffmpegBin, current.file, out, current.info);
+  job = new ExportJob(ffmpegBin, current.file, out, current.info, fps);
   return { w: job.w, h: job.h, frames: job.frames };
 });
 ipcMain.handle('export-next', async () => {

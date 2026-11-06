@@ -3,7 +3,7 @@ contextBridge.exposeInMainWorld('api', {
   pick: () => ipcRenderer.invoke('pick'),
   pathOf: (file) => webUtils.getPathForFile(file),
   load: (path) => ipcRenderer.invoke('load', path),
-  exportStart: (out) => ipcRenderer.invoke('export-start', out),
+  exportStart: (out, fps) => ipcRenderer.invoke('export-start', out, fps),
   exportNext: () => ipcRenderer.invoke('export-next'),
   exportPut: (buf) => ipcRenderer.invoke('export-put', buf),
   exportFinish: () => ipcRenderer.invoke('export-finish'),

@@ -7,7 +7,7 @@
 <div class="stage" id="stage"><canvas id="c" width="640" height="480"></canvas>
 <div class="drop" id="drop" hidden>Video hier ablegen</div></div>
 <div class="bar"><button id="play" aria-label="Abspielen" disabled>▶</button><input id="seek" type="range" min="0" max="1000" value="0" disabled aria-label="Position">
-<span id="time">00:00 / 00:00</span><label><input id="osd" type="checkbox" checked> PLAY-Anzeige</label></div>
+<span id="time">00:00 / 00:00</span><label class="fps">Bilder/s <input id="fps" type="range" min="5" max="60" step="1" value="25"> <output id="fpsV">25</output></label><label><input id="osd" type="checkbox" checked> PLAY-Anzeige</label></div>
 <p id="status">Beispielbild. Öffne ein Video oder zieh es ins Fenster.</p>
 <div class="pr" id="presets"></div>
 <div class="own" id="own" hidden><label>Schatten <input type="color" id="c0"></label><label>Mitten <input type="color" id="c1"></label><label>Lichter <input type="color" id="c2"></label></div>

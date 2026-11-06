@@ -4,7 +4,7 @@ precision highp float;
 in vec2 vUv; out vec4 outC;
 uniform sampler2D uV, uO;
 uniform vec2 uR;
-uniform float uT, uSplit;
+uniform float uT, uSplit, uFps;
 uniform float sharp, bleed, shift_, over, noise_, jitter, track, drop_, scan, head, flick, vig, sat, hue, con, pop;
 uniform vec3 uC0, uC1, uC2;
 const float L = 480.0;
@@ -20,7 +20,7 @@ vec3 src(vec2 uv){
 void main(){
   vec2 uv=vUv;
   if(uSplit>.5 && uv.x<.5){ outC=vec4(texture(uV,uv).rgb,1.); if(uv.x>.4985) outC=vec4(1.); return; }
-  float line=floor(uv.y*L), fr=floor(uT*25.);
+  float line=floor(uv.y*L), fr=floor(uT*uFps+.001);
   float dx=(n1(line*.09+uT*6.)-.5)*.014*jitter+(h(vec2(line,fr))-.5)*.005*jitter;
   float c=fract(uT*.09+.2*n1(uT*.4));
   float on=step(.5,n1(uT*.9+7.));

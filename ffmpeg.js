@@ -42,18 +42,18 @@ async function makePreview(bin, file, out, info, codec = 'h264') {
 }
 
 class ExportJob {
-  constructor(bin, src, out, info) {
+  constructor(bin, src, out, info, fps = FPS) {
     this.h = even(Math.min(info.height, 1080));
     this.w = even(info.width * (this.h / info.height));
     this.frameSize = this.w * this.h * 4;
-    this.frames = Math.ceil(info.duration * FPS) || 0;
+    this.frames = Math.ceil(info.duration * fps) || 0;
     this.out = out;
     this.tmp = out + '.tmp.mp4';
-    this.dec = spawn(bin, ['-v', 'error', '-i', src, '-vf', `fps=${FPS},scale=${this.w}:${this.h},format=rgba`,
+    this.dec = spawn(bin, ['-v', 'error', '-i', src, '-vf', `fps=${fps},scale=${this.w}:${this.h},format=rgba`,
       '-f', 'rawvideo', '-'], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
     const audio = info.audio ? ['-map', '1:a', '-af', AUDIO, '-c:a', 'aac', '-b:a', '160k', '-ar', '44100', '-shortest'] : [];
     this.enc = spawn(bin, ['-y', '-v', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', `${this.w}x${this.h}`,
-      '-r', String(FPS), '-i', '-', '-i', src, '-map', '0:v', ...audio, '-vf', 'vflip', '-c:v', 'libx264',
+      '-r', String(fps), '-i', '-', '-i', src, '-map', '0:v', ...audio, '-vf', 'vflip', '-c:v', 'libx264',
       '-crf', '16', '-preset', 'medium', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', this.tmp],
       { windowsHide: true, stdio: ['pipe', 'ignore', 'pipe'] });
     this.err = '';
