@@ -1,0 +1,30 @@
+name: Build
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run build
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Selbsttest
+        shell: pwsh
+        run: |
+          $ff = (node -p "require('ffmpeg-static')")
+          & $ff -y -v error -f lavfi -i testsrc=size=640x480:rate=30:duration=3 -f lavfi -i sine=duration=3 -c:v mjpeg -c:a pcm_s16le test.avi
+          $p = Start-Process "dist\win-unpacked\RetroDeck.exe" -ArgumentList "--selftest","`"$PWD\test.avi`"","`"$PWD\test_out.mp4`"" -Wait -PassThru
+          "Exitcode: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { exit 1 }
+          if ((Get-Item test_out.mp4).Length -lt 10000) { exit 1 }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RetroDeck
+          path: dist/RetroDeck.exe

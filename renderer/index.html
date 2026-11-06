@@ -1,0 +1,16 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><title>RetroDeck</title>
+<link rel="stylesheet" href="style.css"></head><body>
+<header><h1>RETRO<span>DECK</span></h1><div class="bt">
+<button id="open">Video öffnen</button><button id="cmp">Vorher / Nachher</button>
+<button id="save">Einstellungen speichern</button><button id="exp" class="p" disabled>Als MP4 exportieren</button></div></header>
+<main><div class="left">
+<div class="stage" id="stage"><canvas id="c" width="640" height="480"></canvas>
+<div class="drop" id="drop" hidden>Video hier ablegen</div></div>
+<div class="bar"><button id="play" aria-label="Abspielen" disabled>▶</button><input id="seek" type="range" min="0" max="1000" value="0" disabled aria-label="Position">
+<span id="time">00:00 / 00:00</span><label><input id="osd" type="checkbox" checked> PLAY-Anzeige</label></div>
+<p id="status">Beispielbild. Öffne ein Video oder zieh es ins Fenster.</p>
+<div class="pr" id="presets"></div>
+<div class="own" id="own" hidden><label>Schatten <input type="color" id="c0"></label><label>Mitten <input type="color" id="c1"></label><label>Lichter <input type="color" id="c2"></label></div>
+</div><div class="pan" id="panel"></div></main>
+<div class="ov" id="ov" hidden><div class="box"><b id="ovT">Export läuft</b><progress id="ovP" max="1" value="0"></progress><span id="ovS"></span><button id="ovC">Abbrechen</button></div></div>
+<script src="shader.js"></script><script src="app.js"></script></body></html>

@@ -1,0 +1,26 @@
+{
+  "name": "retrodeck",
+  "productName": "RetroDeck",
+  "version": "1.0.0",
+  "description": "VHS- und Retro-Pop-Filter fuer Videos",
+  "author": "Sinan Bruenisholz",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win portable dir"
+  },
+  "dependencies": {
+    "ffmpeg-static": "5.2.0"
+  },
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "ch.sinan.retrodeck",
+    "artifactName": "RetroDeck.exe",
+    "files": ["main.js", "preload.js", "ffmpeg.js", "renderer/**"],
+    "asarUnpack": ["node_modules/ffmpeg-static/**"],
+    "win": { "target": ["portable", "dir"] }
+  }
+}
