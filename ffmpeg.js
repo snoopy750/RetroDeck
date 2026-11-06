@@ -1,6 +1,11 @@
 // Alles rund um ffmpeg, ohne Electron, damit es separat testbar ist.
 const { spawn } = require('child_process');
 const fs = require('fs');
+const os = require('os');
+
+// ffmpeg soll den PC nicht blockieren: wenige Kerne, niedrige Priorität
+const EXPORT_THREADS = String(Math.max(2, Math.floor(os.cpus().length / 2)));
+const calm = (p) => { try { if (p.pid) os.setPriority(p.pid, os.constants.priority.PRIORITY_BELOW_NORMAL); } catch { /* Priorität bleibt normal */ } return p; };
 
 const FPS = 25;
 const AUDIO = 'highpass=f=120,lowpass=f=6000,acompressor=threshold=0.15:ratio=4,volume=2.2';
@@ -8,7 +13,7 @@ const even = (n) => Math.max(2, Math.round(n / 2) * 2);
 
 function run(bin, args) {
   return new Promise((resolve, reject) => {
-    const p = spawn(bin, args, { windowsHide: true });
+    const p = calm(spawn(bin, args, { windowsHide: true }));
     let err = '';
     p.stderr.on('data', (d) => { err = (err + d).slice(-8000); });
     p.on('error', reject);
@@ -26,13 +31,15 @@ async function probe(bin, file) {
     height: +v[2],
     duration: d ? +d[1] * 3600 + +d[2] * 60 + +d[3] : 0,
     audio: /Audio:/.test(err),
+    direct: /Input #0, mov,mp4/.test(err) && /Video: h264/.test(err) && !/Audio: (?!aac)/.test(err) && +v[2] <= 1080
+      && fs.statSync(file).size < 400 * 1024 * 1024,
   };
 }
 
 // Vorschau in kleinem, gut abspielbarem Format (funktioniert auch mit AVI).
 async function makePreview(bin, file, out, info, codec = 'h264') {
-  const a = ['-y', '-v', 'error', '-i', file, '-vf', 'scale=-2:\'min(480,ih)\',format=yuv420p', '-r', String(FPS)];
-  if (codec === 'h264') a.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-g', '12');
+  const a = ['-y', '-v', 'error', '-threads', '1', '-i', file, '-filter_threads', '1', '-vf', 'scale=-2:\'min(480,ih)\',format=yuv420p', '-r', String(FPS)];
+  if (codec === 'h264') a.push('-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '23', '-g', '12', '-threads', '2');
   else a.push('-c:v', 'libvpx', '-b:v', '2M', '-g', '12');
   if (info.audio) a.push('-c:a', codec === 'h264' ? 'aac' : 'libvorbis', '-b:a', '128k', '-ar', '44100');
   a.push(out);
@@ -49,13 +56,15 @@ class ExportJob {
     this.frames = Math.ceil(info.duration * fps) || 0;
     this.out = out;
     this.tmp = out + '.tmp.mp4';
-    this.dec = spawn(bin, ['-v', 'error', '-i', src, '-vf', `fps=${fps},scale=${this.w}:${this.h},format=rgba`,
+    this.dec = spawn(bin, ['-v', 'error', '-threads', '2', '-i', src, '-vf', `fps=${fps},scale=${this.w}:${this.h},format=rgba`,
       '-f', 'rawvideo', '-'], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+    calm(this.dec);
     const audio = info.audio ? ['-map', '1:a', '-af', AUDIO, '-c:a', 'aac', '-b:a', '160k', '-ar', '44100', '-shortest'] : [];
     this.enc = spawn(bin, ['-y', '-v', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgba', '-s', `${this.w}x${this.h}`,
       '-r', String(fps), '-i', '-', '-i', src, '-map', '0:v', ...audio, '-vf', 'vflip', '-c:v', 'libx264',
-      '-crf', '16', '-preset', 'medium', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', this.tmp],
+      '-crf', '16', '-preset', 'medium', '-threads', EXPORT_THREADS, '-pix_fmt', 'yuv420p', '-movflags', '+faststart', this.tmp],
       { windowsHide: true, stdio: ['pipe', 'ignore', 'pipe'] });
+    calm(this.enc);
     this.err = '';
     this.enc.stderr.on('data', (d) => { this.err = (this.err + d).slice(-4000); });
     this.enc.stdin.on('error', () => {});

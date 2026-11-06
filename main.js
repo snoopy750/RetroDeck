@@ -36,10 +36,14 @@ ipcMain.handle('pick', async () => {
 
 ipcMain.handle('load', async (_e, file) => {
   const info = await probe(ffmpegBin, file);
-  const out = path.join(tmpDir, `preview-${Date.now()}.mp4`);
-  await makePreview(ffmpegBin, file, out, info);
-  const data = fs.readFileSync(out);
-  fs.rmSync(out, { force: true });
+  let data;
+  if (info.direct) data = fs.readFileSync(file); // MP4 läuft ohne Umwandlung
+  else {
+    const out = path.join(tmpDir, `preview-${Date.now()}.mp4`);
+    await makePreview(ffmpegBin, file, out, info);
+    data = fs.readFileSync(out);
+    fs.rmSync(out, { force: true });
+  }
   current = { file, info };
   const b = data.buffer.slice(data.byteOffset, data.byteOffset + data.length);
   return { name: path.basename(file), info, data: b };
