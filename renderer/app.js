@@ -54,12 +54,12 @@ function buildPresets() {
 
 // WebGL
 const canvas = $('c');
-const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: true, antialias: false });
+const gl = canvas.getContext('webgl2', { preserveDrawingBuffer: false, antialias: false, alpha: false, powerPreference: 'high-performance' });
 if (!gl) $('status').textContent = 'WebGL 2 ist nicht verfügbar. Aktualisiere den Grafiktreiber und starte RetroDeck neu.';
 function sh(t, s) { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; }
 const prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, window.VERT)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, window.FRAG)); gl.linkProgram(prog); gl.useProgram(prog);
 gl.bindVertexArray(gl.createVertexArray());
-const U = (n) => gl.getUniformLocation(prog, n);
+const uCache = {}; const U = (n) => uCache[n] ?? (uCache[n] = gl.getUniformLocation(prog, n));
 function tex(unit) { const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t); for (const [p, v] of [[gl.TEXTURE_MIN_FILTER, gl.LINEAR], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE]]) gl.texParameteri(gl.TEXTURE_2D, p, v); return t; }
 tex(0); tex(1); gl.uniform1i(U('uV'), 0); gl.uniform1i(U('uO'), 1);
 const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16) / 255);
@@ -100,10 +100,14 @@ function audioChain() { // Ton wie vom Band auch in der Vorschau
 }
 const fmt = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const start = performance.now();
-function loop() {
-  requestAnimationFrame(loop); if (busy) return;
-  const hasV = media && vid.readyState >= 2;
-  upload(hasV ? vid : demoC); drawOsd(stamp(hasV ? vid.currentTime : 5));
+// Vorschau mit 25 Bildern/s, Video nur hochladen, wenn ein neues Bild da ist
+let lastDraw = 0, dirty = true, shown = null;
+if (vid.requestVideoFrameCallback) { const vf = () => { dirty = true; vid.requestVideoFrameCallback(vf); }; vid.requestVideoFrameCallback(vf); }
+function loop(now) {
+  requestAnimationFrame(loop); if (busy || now - lastDraw < 36) return; lastDraw = now;
+  const hasV = media && vid.readyState >= 2, s = hasV ? vid : demoC;
+  if (dirty || s !== shown || !vid.requestVideoFrameCallback) { upload(s); shown = s; dirty = false; }
+  drawOsd(stamp(hasV ? vid.currentTime : 5));
   render(hasV ? vid.currentTime + (vid.paused ? (performance.now() - start) / 1000 : 0) : (performance.now() - start) / 1000, split);
   if (hasV) { const d = vid.duration || 0; if (document.activeElement !== $('seek')) $('seek').value = d ? vid.currentTime / d * 1000 : 0; $('time').textContent = `${fmt(vid.currentTime)} / ${fmt(d)}`; }
 }
@@ -114,7 +118,7 @@ async function open(path) {
     const r = await window.api.load(path);
     if (media) URL.revokeObjectURL(media.url);
     const url = URL.createObjectURL(new Blob([r.data], { type: r.type || 'video/mp4' }));
-    vid.src = url; media = { url, name: r.name, info: r.info };
+    vid.src = url; dirty = true; media = { url, name: r.name, info: r.info };
     await new Promise((res, rej) => { vid.onloadeddata = res; vid.onerror = () => rej(new Error('Die Vorschau lässt sich nicht abspielen.')); });
     canvas.width = Math.round(vid.videoWidth / vid.videoHeight * 480 / 2) * 2; canvas.height = 480;
     ['play', 'seek', 'exp'].forEach((id) => { $(id).disabled = false; });
@@ -136,7 +140,7 @@ async function doExport(fixedOut) {
       if (i % 5 === 0) { $('ovP').value = job.frames ? Math.min(1, i / job.frames) : 0; const sp = i / 25 / ((performance.now() - t0) / 1000); $('ovS').textContent = `${i} / ${job.frames} Bilder, ${sp.toFixed(1)}-fache Echtzeit`; await new Promise((r) => setTimeout(r)); }
     }
     const out = await window.api.exportFinish(); $('status').textContent = `Gespeichert: ${out}`; window.api.reveal(out); return out;
-  } catch (e) { $('status').textContent = e.message; throw e; } finally { busy = false; $('ov').hidden = true; canvas.width = pw; canvas.height = ph; }
+  } catch (e) { $('status').textContent = e.message; throw e; } finally { busy = false; dirty = true; $('ov').hidden = true; canvas.width = pw; canvas.height = ph; }
 }
 
 $('open').onclick = async () => { const p = await window.api.pick(); if (p) open(p).catch(() => {}); };
@@ -152,7 +156,9 @@ addEventListener('dragleave', (e) => { if (!e.relatedTarget) $('drop').hidden = 
 addEventListener('drop', (e) => { e.preventDefault(); $('drop').hidden = true; const f = e.dataTransfer.files[0]; if (f) open(window.api.pathOf(f)).catch(() => {}); });
 addEventListener('keydown', (e) => { if (e.code === 'Space' && !e.target.closest('.d,button,input') && !$('play').disabled) { e.preventDefault(); $('play').click(); } });
 
-buildKnobs(); buildPresets(); applyPreset(PRESETS[1], 1); loop();
+buildKnobs(); buildPresets(); applyPreset(PRESETS[1], 1); requestAnimationFrame(loop);
+const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+if (dbg && /swiftshader|llvmpipe|software/i.test(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL))) $('status').textContent = 'Die Grafikkarte wird nicht genutzt, darum ist die Prozessorlast hoch. Aktualisiere den Grafiktreiber.';
 window.api.onSelftest(async ({ input, output }) => {
   try { await open(input); await doExport(output); await window.api.selftestDone(true, 'ok'); } catch (e) { await window.api.selftestDone(false, String(e)); }
 });
