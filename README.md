@@ -23,7 +23,7 @@ Windows-Programm, das Videos in Echtzeit mit VHS-Effekten und Retro-Pop-Farben v
 
 ## Installation
 
-1. Öffne den [aktuellen Build](https://github.com/snoopy750/RetroDeck/actions/runs/42223716171) und melde dich bei GitHub an. Neuere Builds findest du unter [Actions](https://github.com/snoopy750/RetroDeck/actions/workflows/build.yml).
+1. Öffne den [aktuellen Build](https://github.com/snoopy750/RetroDeck/actions/runs/42225314463) und melde dich bei GitHub an. Neuere Builds findest du unter [Actions](https://github.com/snoopy750/RetroDeck/actions/workflows/build.yml).
 2. Lade unter **Artifacts** den Eintrag `RetroDeck` herunter und entpacke ihn.
 3. Starte `RetroDeck.exe`. Eine Installation ist nicht nötig.
 
